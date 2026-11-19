@@ -15,14 +15,14 @@ export default function LiveMonitor() {
   const [move, setMove] = useState('');
   const [showF, setShowF] = useState(false);
   const dq = useDebounced(q);
-  const rows = data.filter((l) => matches(dq, l.employee_name, l.sector_name, l.device_name, l.operator_name) && (!result || l.decision === result) && (!move || l.access_type === move));
+  const rows = data.filter((l) => matches(dq, l.employee_name, l.sector_name, l.device_name, l.operator_name, l.company) && (!result || l.decision === result) && (!move || l.access_type === move));
   const allowed = data.filter((l) => l.decision === 'allowed').length;
 
   return (
     <Page title="Monitoramento ao vivo" subtitle="Acompanhe entradas, saídas e negativas em tempo real.">
       <div className="space-y-5">
         <Toolbar placeholder="Buscar em monitoramento ao vivo..." value={q} onChange={setQ} actionLabel="Exportar acessos" actionIcon={Download}
-          onAction={() => downloadCSV(`eventoid-acessos-${new Date().toISOString().slice(0, 10)}.csv`, ['Data e hora', 'Funcionário', 'Setor', 'Movimento', 'Resultado', 'Motivo', 'Dispositivo', 'Operador'], rows.map((l) => [fmtDateTime(l.occurred_at), l.employee_name, l.sector_name, l.access_type === 'entry' ? 'Entrada' : 'Saída', l.decision === 'allowed' ? 'Liberado' : 'Negado', l.reason ?? '', l.device_name, l.operator_name]))} onFilters={() => setShowF((v) => !v)} filtersActive={!!(result || move)} />
+          onAction={() => downloadCSV(`eventoid-acessos-${new Date().toISOString().slice(0, 10)}.csv`, ['Data e hora', 'Funcionário', 'Empresa', 'Setor', 'Movimento', 'Resultado', 'Motivo', 'Dispositivo', 'Operador'], rows.map((l) => [fmtDateTime(l.occurred_at), l.employee_name, l.company ?? '', l.sector_name, l.access_type === 'entry' ? 'Entrada' : 'Saída', l.decision === 'allowed' ? 'Liberado' : 'Negado', l.reason ?? '', l.device_name, l.operator_name]))} onFilters={() => setShowF((v) => !v)} filtersActive={!!(result || move)} />
         {showF && (
           <div className="grid gap-3 sm:grid-cols-3">
             <Select value={result} onChange={(e) => setResult(e.target.value)} aria-label="Resultado"><option value="">Todos os resultados</option><option value="allowed">Liberado</option><option value="denied">Negado</option></Select>

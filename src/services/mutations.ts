@@ -56,7 +56,7 @@ export async function createShift(v: { event_id: string; sector_id?: string; nam
 }
 
 /* ---------------- Funcionários ---------------- */
-export interface EmployeeInput { full_name: string; cpf?: string; phone?: string; email?: string; event_id?: string; sector_id?: string; shift_id?: string }
+export interface EmployeeInput { full_name: string; cpf?: string; phone?: string; email?: string; company?: string; event_id?: string; sector_id?: string; shift_id?: string }
 export async function createEmployee(v: EmployeeInput): Promise<string> {
   if (!v.full_name?.trim()) throw new Error('Informe o nome completo.');
   const cpf = (v.cpf ?? '').replace(/\D/g, '');
@@ -66,7 +66,7 @@ export async function createEmployee(v: EmployeeInput): Promise<string> {
   }).select('id').single())) as { id: string };
   if (v.event_id) {
     const { error } = await db().from('event_employees').insert({
-      event_id: v.event_id, employee_id: emp.id, sector_id: nul(v.sector_id), shift_id: nul(v.shift_id), access_status: 'authorized',
+      event_id: v.event_id, employee_id: emp.id, sector_id: nul(v.sector_id), shift_id: nul(v.shift_id), company_name: nul(v.company), access_status: 'authorized',
     });
     if (error) throw new Error(`Funcionário criado, mas o vínculo falhou: ${error.message}`);
   }
@@ -204,10 +204,11 @@ export async function rotateSignupToken(eventId: string) {
 }
 
 /** Aprova o cadastro no evento: vínculo autorizado, cadastro completo e selfie aprovada. */
-export async function approveRegistration(employeeId: string, eventId: string, sectorId?: string | null) {
+export async function approveRegistration(employeeId: string, eventId: string, sectorId?: string | null, company?: string) {
   const sb = db();
   const link: Record<string, unknown> = { access_status: 'authorized' };
   if (sectorId !== undefined) link.sector_id = sectorId || null;
+  if (company !== undefined && company.trim().length >= 2) link.company_name = company.trim();
   await ok(sb.from('event_employees').update(link).eq('employee_id', employeeId).eq('event_id', eventId));
   await ok(sb.from('employees').update({ registration_status: 'complete' }).eq('id', employeeId).eq('registration_status', 'pending'));
   const faces = (await ok(sb.from('employee_faces').select('id, photo_path, is_primary, review_status').eq('employee_id', employeeId).eq('active', true))) as

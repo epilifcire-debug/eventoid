@@ -165,7 +165,8 @@ create policy faces_obj_self_insert on storage.objects for insert to anon, authe
 );
 
 -- ---------- Views atualizadas (novas colunas no final) ----------
-create or replace view public.v_events with (security_invoker = true) as
+drop view if exists public.v_events;
+create view public.v_events with (security_invoker = true) as
 select e.id, e.name, e.description, e.venue_name, e.city, e.state, e.starts_at, e.ends_at, e.status,
        coalesce(e.manager_name, private.profile_name(e.created_by)) as manager, e.offline_hours,
        (select count(*) from public.event_employees ee where ee.event_id = e.id and ee.access_status = 'authorized')::int as staff_count,
@@ -173,7 +174,8 @@ select e.id, e.name, e.description, e.venue_name, e.city, e.state, e.starts_at, 
        e.signup_enabled
 from public.events e;
 
-create or replace view public.v_employees with (security_invoker = true) as
+drop view if exists public.v_employees;
+create view public.v_employees with (security_invoker = true) as
 select e.id, e.employee_code as code, e.full_name, coalesce(e.cpf, '') as document, coalesce(e.phone, '') as phone, coalesce(e.email, '') as email,
        ee.event_id, ee.sector_id, ee.shift_id,
        case when exists (select 1 from public.employee_faces f where f.employee_id = e.id and f.active and f.review_status = 'approved' and f.is_primary) then 'complete'
@@ -192,3 +194,5 @@ left join lateral (
   select x.* from public.event_employees x where x.employee_id = e.id
   order by (x.access_status = 'pending') desc, x.created_at desc limit 1
 ) ee on true;
+
+grant select on public.v_events, public.v_employees to authenticated;

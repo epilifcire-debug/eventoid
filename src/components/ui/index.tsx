@@ -17,7 +17,7 @@ export function Button({ variant = 'primary', icon: Icon, loading, className, ch
       {...p}
       type={p.type ?? 'button'}
       disabled={p.disabled || loading}
-      className={cx('inline-flex min-h-[44px] items-center justify-center gap-2 rounded-btn px-4 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[40px]', BTN[variant], className)}
+      className={cx('inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap rounded-btn px-4 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[40px]', BTN[variant], className)}
     >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : Icon ? <Icon className="h-4 w-4" /> : null}
       {children}

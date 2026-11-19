@@ -88,6 +88,7 @@ export interface Employee {
   self_registered: boolean;
   photo_path?: string | null;
   link_status?: 'pending' | 'authorized' | 'blocked' | 'cancelled' | null;
+  company?: string | null;
 }
 
 export type AccessType = 'entry' | 'exit';
@@ -107,6 +108,7 @@ export interface AccessLog {
   occurred_at: string;
   manual?: boolean;
   was_offline?: boolean;
+  company?: string | null;
 }
 
 export type ReaderMode = 'entry' | 'exit' | 'auto';

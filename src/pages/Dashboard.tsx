@@ -131,6 +131,7 @@ export function AccessTable({ rows }: { rows: AccessLog[] }) {
       columns={[
         { key: 'n', header: 'Funcionário', render: (r) => <span className="flex items-center gap-3"><Avatar name={r.employee_name} size={32} /><span className="font-medium">{r.employee_name}</span></span> },
         { key: 's', header: 'Setor', render: (r) => r.sector_name },
+        { key: 'c', header: 'Empresa', render: (r) => <span className="text-ink-muted">{r.company ?? '—'}</span>, hideOnTablet: true },
         { key: 'h', header: 'Horário', render: (r) => <span className="tabular-nums">{fmtTime(r.occurred_at)}</span> },
         { key: 'm', header: 'Movimento', render: (r) => <MovementCell t={r.access_type} denied={r.decision === 'denied'} /> },
         { key: 'r', header: 'Resultado', render: (r) => <DecisionBadge d={r.decision} /> },

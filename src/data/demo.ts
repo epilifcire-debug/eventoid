@@ -46,6 +46,7 @@ export const demoShifts: Shift[] = [
 
 const FIRST = ['Ana Clara', 'Rafael', 'Mariana', 'Thiago', 'Beatriz', 'Lucas', 'Juliana', 'Bruno', 'Camila', 'Pedro', 'Larissa', 'Gustavo', 'Fernanda', 'Diego', 'Patrícia', 'Rodrigo', 'Aline', 'Felipe', 'Carla', 'Vinícius', 'Isabela', 'André', 'Natália', 'Leonardo', 'Bianca', 'Matheus', 'Débora', 'Caio', 'Priscila', 'Henrique'];
 const LAST = ['Souza', 'Lima', 'Costa', 'Almeida', 'Santos', 'Oliveira', 'Pereira', 'Rocha', 'Carvalho', 'Ribeiro', 'Martins', 'Gomes', 'Barbosa', 'Araújo', 'Freitas', 'Nascimento', 'Moreira', 'Teixeira'];
+const COMPANIES = ['Produtora Horizonte', 'Alfa Segurança', 'Limpa Já Serviços', 'Buffet Sabor & Cia', 'Produtora Horizonte', 'Staff Nordeste'];
 const cpf = () => Array.from({ length: 11 }, () => Math.floor(rnd() * 10)).join('');
 
 export const demoEmployees: Employee[] = Array.from({ length: 42 }, (_, i) => {
@@ -66,6 +67,7 @@ export const demoEmployees: Employee[] = Array.from({ length: 42 }, (_, i) => {
     consent: r < 0.9,
     status: i === 3 ? 'blocked' : r > 0.93 ? 'pending' : 'active',
     self_registered: rnd() > 0.6,
+    company: COMPANIES[i % COMPANIES.length],
   };
 });
 
@@ -91,6 +93,7 @@ export const demoAccessLogs: AccessLog[] = Array.from({ length: 64 }, (_, i) => 
     occurred_at: iso(now - i * 47_000 - 30_000),
     manual: i % 13 === 5,
     was_offline: i % 17 === 9,
+    company: denied && i % 2 ? null : emp.company,
   };
 });
 

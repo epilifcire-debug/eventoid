@@ -31,7 +31,7 @@ export default function SelfRegister() {
   const [info, setInfo] = useState<SignupInfo | null>(null);
   const [loadErr, setLoadErr] = useState('');
   const [step, setStep] = useState<Step>(0);
-  const [form, setForm] = useState({ full_name: '', cpf: '', phone: '', email: '', sector_id: '' });
+  const [form, setForm] = useState({ full_name: '', cpf: '', phone: '', email: '', company: '', sector_id: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [photo, setPhoto] = useState<{ blob: Blob; url: string } | null>(null);
   const [accept, setAccept] = useState(false);
@@ -57,6 +57,7 @@ export default function SelfRegister() {
     const ph = form.phone.replace(/\D/g, '');
     if (ph.length < 10 || ph.length > 11) e.phone = 'Informe o telefone com DDD.';
     if (form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) e.email = 'E-mail inválido.';
+    if (form.company.trim().length < 2) e.company = 'Informe a empresa.';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -117,6 +118,9 @@ export default function SelfRegister() {
                     <Field label="CPF" required error={errors.cpf}><Input value={form.cpf} onChange={set('cpf')} inputMode="numeric" placeholder="000.000.000-00" /></Field>
                     <Field label="Telefone (WhatsApp)" required error={errors.phone}><Input value={form.phone} onChange={set('phone')} inputMode="tel" autoComplete="tel" placeholder="(79) 99999-9999" /></Field>
                     <Field label="E-mail" error={errors.email}><Input value={form.email} onChange={set('email')} type="email" inputMode="email" autoComplete="email" /></Field>
+                    <Field label="Empresa" required error={errors.company} hint="A empresa que contratou você para este evento (terceirizada ou a própria organização).">
+                      <Input value={form.company} onChange={set('company')} autoComplete="organization" maxLength={120} placeholder="Ex.: Alfa Segurança" />
+                    </Field>
                     {!!info.sectors?.length && (
                       <Field label="Setor em que vai trabalhar" hint="Se não souber, deixe em branco. A organização define depois.">
                         <Select value={form.sector_id} onChange={set('sector_id')}><option value="">Não sei / a definir</option>{info.sectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select>
@@ -133,7 +137,7 @@ export default function SelfRegister() {
                   <div className="space-y-4">
                     <div className="flex items-center gap-3">
                       {photo && <img src={photo.url} alt="Sua foto" className="h-16 w-16 rounded-full object-cover" />}
-                      <div className="text-sm"><p className="font-semibold text-ink">{form.full_name}</p><p className="text-ink-muted">CPF {form.cpf}</p></div>
+                      <div className="text-sm"><p className="font-semibold text-ink">{form.full_name}</p><p className="text-ink-muted">CPF {form.cpf} · {form.company}</p></div>
                     </div>
                     <div className="rounded-btn border border-line bg-bg p-4 text-sm">
                       <p className="flex items-center gap-2 font-semibold text-ink"><ShieldCheck className="h-4 w-4 text-primary" />Termo de uso da biometria · {info.term.version}</p>

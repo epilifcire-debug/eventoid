@@ -12,7 +12,7 @@ export interface SignupInfo {
 }
 
 export interface SignupInput {
-  full_name: string; cpf: string; phone: string; email?: string; sector_id?: string; term_version: string; accept: boolean;
+  full_name: string; cpf: string; phone: string; email?: string; sector_id?: string; company: string; term_version: string; accept: boolean;
 }
 
 const DEMO_TERM = {
@@ -40,7 +40,7 @@ export async function submitSignup(token: string, v: SignupInput, selfie: Blob):
   if (!supabase) throw new Error('Servidor não configurado.');
   const { data, error } = await supabase.rpc('self_register', {
     p_token: token, p_full_name: v.full_name, p_cpf: v.cpf, p_phone: v.phone, p_email: v.email || null,
-    p_sector_id: v.sector_id || null, p_term_version: v.term_version, p_accept: v.accept,
+    p_sector_id: v.sector_id || null, p_company: v.company, p_term_version: v.term_version, p_accept: v.accept,
   });
   if (error) throw new Error(error.message.length < 140 ? error.message : 'Não foi possível enviar o cadastro.');
   const { employee_id, upload_token } = data as { employee_id: string; upload_token: string };

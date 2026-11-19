@@ -28,17 +28,24 @@ export default function Employees() {
   const [sel, setSel] = useState<Employee | null>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [approveSector, setApproveSector] = useState<string>('');
-  useEffect(() => { setApproveSector(sel?.sector_id ?? ''); }, [sel]);
+  const [approveCompany, setApproveCompany] = useState<string>('');
+  const [company, setCompany] = useState('');
+  const companies = [...new Set(data.map((e) => e.company).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  useEffect(() => { setApproveSector(sel?.sector_id ?? ''); setApproveCompany(sel?.company ?? ''); }, [sel]);
   const dq = useDebounced(q);
   const sector = (id: string) => sectors.find((s) => s.id === id)?.name ?? '—';
-  const rows = data.filter((e) => (view === 'all' || e.status === 'pending') && matches(dq, e.full_name, e.code, e.document, e.phone, sector(e.sector_id)));
+  const rows = data.filter((e) => (view === 'all' || e.status === 'pending') && matches(dq, e.full_name, e.code, e.document, e.phone, sector(e.sector_id), e.company) && (!company || e.company === company));
   const editable = canEdit(profile?.role);
 
   return (
     <Page title="Funcionários" subtitle="Cadastre, vincule e acompanhe funcionários temporários.">
       <div className="space-y-5">
-        <Toolbar placeholder="Buscar por nome, CPF, telefone ou setor..." value={q} onChange={setQ} actionLabel="Novo funcionário" onAction={() => setCreating(true)} canAct={editable}
-          extra={editable && <Button variant="outline" icon={Link2} onClick={() => setLinkOpen(true)} className="hidden sm:inline-flex">Link de autocadastro</Button>} />
+        <Toolbar placeholder="Buscar por nome, CPF, telefone, setor ou empresa..." value={q} onChange={setQ} actionLabel="Novo funcionário" onAction={() => setCreating(true)} canAct={editable}
+          extra={<>
+            {companies.length > 0 && <Select aria-label="Filtrar por empresa" value={company} onChange={(e) => setCompany(e.target.value)} className="hidden w-44 lg:block"><option value="">Todas as empresas</option>{companies.map((c) => <option key={c}>{c}</option>)}</Select>}
+            {editable && <Button variant="outline" icon={Link2} onClick={() => setLinkOpen(true)} className="hidden sm:inline-flex">Link de autocadastro</Button>}
+          </>} />
+        {editable && <Button variant="outline" icon={Link2} onClick={() => setLinkOpen(true)} className="w-full sm:hidden">Link de autocadastro</Button>}
         <StatsRow>
           <MiniStat label="Funcionários" value={data.length} icon={CheckCircle2} tone="success" />
           <MiniStat label="Com biometria" value={data.filter((e) => e.face_status === 'complete').length} icon={Clock} tone="primary" />
@@ -49,8 +56,9 @@ export default function Employees() {
           <DataTable rows={rows} onRowClick={setSel}
             columns={[
               { key: 'n', header: 'Funcionário', render: (r) => <span className="flex items-center gap-3"><Avatar name={r.full_name} size={34} /><span><span className="block font-medium">{r.full_name}</span><span className="text-xs text-ink-muted">{r.code}</span></span></span> },
-              { key: 'd', header: 'Documento', render: (r) => <span className="tabular-nums text-ink-muted">{hideCPF(r.document)}</span>, hideOnTablet: true },
+              { key: 'd', header: 'Documento', render: (r) => <span className="whitespace-nowrap tabular-nums text-ink-muted">{hideCPF(r.document)}</span>, hideOnTablet: true },
               { key: 's', header: 'Setor', render: (r) => sector(r.sector_id) },
+              { key: 'e', header: 'Empresa', render: (r) => <span className="text-ink-muted">{r.company ?? '—'}</span> },
               { key: 'f', header: 'Facial', render: (r) => <FaceBadge s={r.face_status} /> },
               { key: 'c', header: 'Consentimento', render: (r) => r.consent ? <Badge tone="success">Aceito</Badge> : <Badge tone="warning">Pendente</Badge>, hideOnTablet: true },
               { key: 'st', header: 'Status', render: (r) => <EmployeeStatusBadge s={r.status} /> },
@@ -58,7 +66,7 @@ export default function Employees() {
             mobile={(r) => (
               <div className="flex items-center gap-3">
                 <Avatar name={r.full_name} size={42} />
-                <div className="min-w-0 flex-1"><p className="truncate font-medium">{r.full_name}</p><p className="text-xs text-ink-muted">{r.code} · {sector(r.sector_id)}</p></div>
+                <div className="min-w-0 flex-1"><p className="truncate font-medium">{r.full_name}</p><p className="truncate text-xs text-ink-muted">{r.code} · {sector(r.sector_id)}{r.company ? ` · ${r.company}` : ''}</p></div>
                 <EmployeeStatusBadge s={r.status} />
               </div>
             )} />
@@ -72,7 +80,7 @@ export default function Employees() {
           <>
             {sel.status === 'pending' && sel.event_id && <>
               <Button variant="outline" onClick={async () => { if (await runAction('Cadastro recusado', () => rejectRegistration(sel.id, sel.event_id), ['employees', 'sectors'])) setSel(null); }}>Recusar</Button>
-              <Button variant="success" icon={ShieldCheck} onClick={async () => { if (await runAction('Cadastro aprovado', () => approveRegistration(sel.id, sel.event_id, approveSector), ['employees', 'sectors'])) setSel(null); }}>Aprovar cadastro</Button>
+              <Button variant="success" icon={ShieldCheck} onClick={async () => { if (await runAction('Cadastro aprovado', () => approveRegistration(sel.id, sel.event_id, approveSector, approveCompany), ['employees', 'sectors'])) setSel(null); }}>Aprovar cadastro</Button>
             </>}
             {sel.status === 'blocked'
               ? <Button variant="outline" icon={Unlock} onClick={async () => { if (await runAction('Funcionário desbloqueado', () => setEmployeeBlocked(sel.id, false), ['employees'])) setSel(null); }}>Desbloquear</Button>
@@ -84,13 +92,13 @@ export default function Employees() {
           <div className="space-y-5">
             <div className="flex items-center gap-4"><EmployeePhoto path={sel.photo_path} name={sel.full_name} /><div><p className="text-lg font-bold">{sel.full_name}</p><p className="text-sm text-ink-muted">{sel.code}</p><div className="mt-1 flex gap-2"><EmployeeStatusBadge s={sel.status} /><FaceBadge s={sel.face_status} /></div></div></div>
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
-              {[['Documento', hideCPF(sel.document)], ['Telefone', maskPhone(sel.phone)], ['E-mail', sel.email], ['Setor', sector(sel.sector_id)], ['Turno', sel.shift_id ? 'Conforme escala' : '—'], ['Origem', sel.self_registered ? 'Autocadastro por link' : 'Cadastro pelo administrador'], ['Consentimento', sel.consent ? 'Aceito' : 'Pendente']]
+              {[['Empresa', sel.company ?? '—'], ['Documento', hideCPF(sel.document)], ['Telefone', maskPhone(sel.phone)], ['E-mail', sel.email], ['Setor', sector(sel.sector_id)], ['Turno', sel.shift_id ? 'Conforme escala' : '—'], ['Origem', sel.self_registered ? 'Autocadastro por link' : 'Cadastro pelo administrador'], ['Consentimento', sel.consent ? 'Aceito' : 'Pendente']]
                 .map(([k, v]) => <div key={k} className="rounded-btn bg-bg px-3 py-2.5"><dt className="text-xs text-ink-muted">{k}</dt><dd className="font-medium text-ink">{v}</dd></div>)}
             </dl>
             {sel.status === 'pending' && editable && (
               <div className="rounded-btn border border-warning/40 bg-warning-light p-3">
                 <p className="text-sm font-semibold text-[#B45309]">Confira a foto e os dados antes de aprovar.</p>
-                <div className="mt-2"><Field label="Setor no evento"><Select value={approveSector} onChange={(e) => setApproveSector(e.target.value)}>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2"><Field label="Empresa"><Input value={approveCompany} onChange={(e) => setApproveCompany(e.target.value)} maxLength={120} /></Field><Field label="Setor no evento"><Select value={approveSector} onChange={(e) => setApproveSector(e.target.value)}>
                   <option value="">Sem setor</option>{sectors.filter((x) => x.event_id === sel.event_id).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
                 </Select></Field></div>
               </div>
@@ -132,7 +140,8 @@ function EmployeeForm({ open, onClose }: { open: boolean; onClose: () => void })
         <div className="sm:col-span-2"><Field label="Nome completo" required><Input name="full_name" autoComplete="off" required /></Field></div>
         <Field label="CPF"><Input name="cpf" inputMode="numeric" value={cpf} onChange={(e) => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" /></Field>
         <Field label="Telefone"><Input name="phone" inputMode="tel" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} placeholder="(79) 99999-9999" /></Field>
-        <div className="sm:col-span-2"><Field label="E-mail"><Input name="email" type="email" inputMode="email" /></Field></div>
+        <Field label="E-mail"><Input name="email" type="email" inputMode="email" /></Field>
+        <Field label="Empresa" hint="Terceirizada ou a própria organização"><Input name="company" maxLength={120} placeholder="Ex.: Alfa Segurança" /></Field>
         <Field label="Evento"><Select name="event_id" value={ev} onChange={(e) => setEventId(e.target.value)}>
           {events.length === 0 && <option value="">Nenhum evento disponível</option>}
           {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
