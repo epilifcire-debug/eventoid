@@ -4,6 +4,11 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 
 // `--mode preview` gera um único index.html (preview de layout, dados demonstrativos).
 export default defineConfig(({ mode }) => ({
+  // Preview: valores fixos e públicos (sem .env). Nunca colocar chaves aqui.
+  define: mode === 'preview' ? {
+    'import.meta.env.VITE_DEMO_MODE': JSON.stringify('true'),
+    'import.meta.env.VITE_ROUTER': JSON.stringify('memory'),
+  } : {},
   plugins: [react(), ...(mode === 'preview' ? [viteSingleFile()] : [])],
   build: {
     outDir: mode === 'preview' ? 'dist-preview' : 'dist',
