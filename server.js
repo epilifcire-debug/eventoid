@@ -5,7 +5,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 
 const ROOT = join(process.cwd(), 'dist');
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = Number(process.env.PORT) || 80;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml',
   '.webp': 'image/webp', '.ico': 'image/x-icon', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2' };
 const SECURITY = {

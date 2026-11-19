@@ -58,15 +58,19 @@ Opcional: defina o secret `ALLOWED_ORIGIN` da função com o domínio do app, pa
 
 ## Publicar na Shard Cloud
 
-```bash
-npm install
-npm run build             # gera dist/
-npm start                 # node server.js (usa a variável PORT; padrão 8080)
-```
+O build já sai apontando para o Supabase de produção (`.env.production`, só com valores públicos).
 
-- O comando de início é `npm start`, com Node 20 ou superior.
-- As variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` são lidas **no build**: defina-as antes de rodar `npm run build`.
-- `server.js` serve o `dist/` com fallback para as rotas do React e cabeçalhos de segurança, sem dependências extras.
+1. Gere o build: `npm install` e depois `npm run build`. Isso cria a pasta `dist/`.
+2. Monte um .zip com **`dist/`**, **`server.js`**, **`.shardcloud`** e um `package.json` mínimo (o servidor não usa dependências):
+   ```json
+   { "name": "eventoid", "private": true, "type": "module", "scripts": { "start": "node server.js" }, "engines": { "node": ">=20" } }
+   ```
+3. Envie o .zip pelo painel da Shard Cloud. O `.shardcloud` define `MAIN=server.js` e o subdomínio `eventoid`.
+4. Com o endereço que a Shard Cloud gerar, configure no Supabase em **Authentication → URL Configuration**:
+   - **Site URL**: `https://ENDERECO-DA-SHARD`
+   - **Redirect URLs**: `https://ENDERECO-DA-SHARD/login` e `https://ENDERECO-DA-SHARD/definir-senha`
+
+`server.js` lê a porta da variável `PORT` (padrão 80) e escuta em `0.0.0.0`.
 
 ## Estrutura
 

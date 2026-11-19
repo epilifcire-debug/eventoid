@@ -1,0 +1,6 @@
+DISPLAY_NAME=EVENTOID
+DESCRIPTION=EVENTOID - controle de equipes em eventos (EFCsys)
+MAIN=server.js
+MEMORY=512
+VERSION=recommended
+SUBDOMAIN=eventoid

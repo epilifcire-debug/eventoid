@@ -2,5 +2,6 @@ node_modules
 dist
 dist-preview
 .env
+!.env.production
 .env.local
 *.log
