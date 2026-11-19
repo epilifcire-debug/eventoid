@@ -42,6 +42,8 @@ export interface EventItem {
   manager: string;
   offline_hours: number;
   staff_count: number;
+  signup_token?: string | null;
+  signup_enabled?: boolean;
 }
 
 export interface Sector {
@@ -84,6 +86,8 @@ export interface Employee {
   consent: boolean;
   status: EmployeeStatus;
   self_registered: boolean;
+  photo_path?: string | null;
+  link_status?: 'pending' | 'authorized' | 'blocked' | 'cancelled' | null;
 }
 
 export type AccessType = 'entry' | 'exit';

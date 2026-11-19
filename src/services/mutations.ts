@@ -193,3 +193,43 @@ export async function deleteBiometry(employeeId: string, consentId?: string) {
   await ok(sb.from('employees').update({ photo_url: null }).eq('id', employeeId));
   if (consentId) await revokeConsent(consentId);
 }
+
+/* ---------------- Autocadastro: link do evento e aprovação ---------------- */
+export async function setSignupEnabled(eventId: string, enabled: boolean) {
+  return ok(db().from('events').update({ signup_enabled: enabled }).eq('id', eventId));
+}
+/** Gera um novo link: o anterior deixa de funcionar imediatamente. */
+export async function rotateSignupToken(eventId: string) {
+  return ok(db().from('events').update({ signup_token: crypto.randomUUID() }).eq('id', eventId));
+}
+
+/** Aprova o cadastro no evento: vínculo autorizado, cadastro completo e selfie aprovada. */
+export async function approveRegistration(employeeId: string, eventId: string, sectorId?: string | null) {
+  const sb = db();
+  const link: Record<string, unknown> = { access_status: 'authorized' };
+  if (sectorId !== undefined) link.sector_id = sectorId || null;
+  await ok(sb.from('event_employees').update(link).eq('employee_id', employeeId).eq('event_id', eventId));
+  await ok(sb.from('employees').update({ registration_status: 'complete' }).eq('id', employeeId).eq('registration_status', 'pending'));
+  const faces = (await ok(sb.from('employee_faces').select('id, photo_path, is_primary, review_status').eq('employee_id', employeeId).eq('active', true))) as
+    Array<{ id: string; photo_path: string; is_primary: boolean; review_status: string }>;
+  const hasPrimary = faces.some((f) => f.is_primary && f.review_status === 'approved');
+  for (const f of faces.filter((x) => x.review_status === 'pending')) {
+    const primary = !hasPrimary && !faces.some((x) => x.is_primary && x.id !== f.id);
+    await ok(sb.from('employee_faces').update({ review_status: 'approved', is_primary: primary }).eq('id', f.id));
+    if (primary) await ok(sb.from('employees').update({ photo_url: f.photo_path }).eq('id', employeeId));
+  }
+}
+
+/** Recusa o cadastro neste evento (o histórico fica na auditoria). */
+export async function rejectRegistration(employeeId: string, eventId: string) {
+  const sb = db();
+  await ok(sb.from('event_employees').update({ access_status: 'cancelled' }).eq('employee_id', employeeId).eq('event_id', eventId));
+  await ok(sb.from('employee_faces').update({ active: false }).eq('employee_id', employeeId).eq('review_status', 'pending'));
+}
+
+/** URL temporária (5 min) para ver uma foto do bucket privado. */
+export async function signedPhotoUrl(path: string): Promise<string | null> {
+  if (!supabase) return null;
+  const { data } = await supabase.storage.from('employee-faces').createSignedUrl(path, 300);
+  return data?.signedUrl ?? null;
+}

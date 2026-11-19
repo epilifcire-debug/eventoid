@@ -27,6 +27,7 @@ const Audit = lazy(() => import('./pages/Audit'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Reader = lazy(() => import('./pages/Reader'));
+const SelfRegister = lazy(() => import('./pages/SelfRegister'));
 
 
 function Splash() {
@@ -81,6 +82,8 @@ function AppRoutes() {
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/leitor" element={<ReaderRoute />} />
         <Route path="/definir-senha" element={<SetPasswordRoute />} />
+        {/* Página pública (sem login) */}
+        <Route path="/autocadastro/:token" element={<SelfRegister />} />
         <Route path="/dashboard" element={<Admin k="dashboard"><Dashboard /></Admin>} />
         <Route path="/eventos" element={<Admin k="events"><Events /></Admin>} />
         <Route path="/eventos/:id" element={<Admin k="events"><EventDetail /></Admin>} />
