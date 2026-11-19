@@ -256,7 +256,7 @@ grant select, insert, update on public.employees, public.employee_faces, public.
   public.user_event_permissions, public.devices, public.reader_settings, public.employee_consents to authenticated;
 grant delete on public.employee_faces, public.event_employees, public.user_event_permissions to authenticated;
 grant select on public.access_logs, public.audit_logs to authenticated;
-grant select, insert on public.consent_terms to authenticated;
+grant select, insert, update on public.consent_terms to authenticated;
 grant select, update on public.app_settings to authenticated;
 grant usage on sequence public.employee_code_seq to authenticated;
 

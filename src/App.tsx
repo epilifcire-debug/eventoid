@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { BrowserRouter, HashRouter, MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient as qc } from './lib/queryClient';
 import { Loader2, ShieldOff } from 'lucide-react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { AppShell, Page } from './components/layout/AppShell';
@@ -8,6 +9,7 @@ import { Card, EmptyState, Toaster } from './components/ui';
 import { canAccess, homeFor, type NavKey } from './lib/permissions';
 import { ROUTER_MODE } from './lib/config';
 import Login from './pages/Login';
+import SetPassword from './pages/SetPassword';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Events = lazy(() => import('./pages/Events'));
@@ -26,7 +28,6 @@ const Settings = lazy(() => import('./pages/Settings'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Reader = lazy(() => import('./pages/Reader'));
 
-const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false } } });
 
 function Splash() {
   return <div className="flex min-h-screen items-center justify-center bg-bg"><Loader2 className="h-6 w-6 animate-spin text-primary" aria-label="Carregando" /></div>;
@@ -38,6 +39,7 @@ function Admin({ k, children }: { k: NavKey; children: ReactNode }) {
   const loc = useLocation();
   if (loading) return <Splash />;
   if (!profile) return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
+  if (profile.must_change_password) return <Navigate to="/definir-senha" replace />;
   if (profile.role === 'reader') return <Navigate to="/leitor" replace />;
   return (
     <AppShell>
@@ -52,6 +54,7 @@ function ReaderRoute() {
   const { profile, loading } = useAuth();
   if (loading) return <Splash />;
   if (!profile) return <Navigate to="/login" replace />;
+  if (profile.must_change_password) return <Navigate to="/definir-senha" replace />;
   if (profile.role !== 'reader') return <Navigate to={homeFor(profile.role)} replace />;
   return <Reader />;
 }
@@ -59,7 +62,16 @@ function ReaderRoute() {
 function LoginRoute() {
   const { profile, loading } = useAuth();
   if (loading) return <Splash />;
+  if (profile?.must_change_password) return <Navigate to="/definir-senha" replace />;
   return profile ? <Navigate to={homeFor(profile.role)} replace /> : <Login />;
+}
+
+function SetPasswordRoute() {
+  const { profile, loading, recovering } = useAuth();
+  if (loading) return <Splash />;
+  if (!profile) return <Navigate to="/login" replace />;
+  if (!profile.must_change_password && !recovering) return <Navigate to={homeFor(profile.role)} replace />;
+  return <SetPassword />;
 }
 
 function AppRoutes() {
@@ -68,6 +80,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/leitor" element={<ReaderRoute />} />
+        <Route path="/definir-senha" element={<SetPasswordRoute />} />
         <Route path="/dashboard" element={<Admin k="dashboard"><Dashboard /></Admin>} />
         <Route path="/eventos" element={<Admin k="events"><Events /></Admin>} />
         <Route path="/eventos/:id" element={<Admin k="events"><EventDetail /></Admin>} />

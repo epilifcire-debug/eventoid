@@ -7,6 +7,7 @@ import { EmployeeStatusBadge } from '../components/ui/status';
 import { useData } from '../hooks/useData';
 import { useAuth } from '../hooks/useAuth';
 import { runAction } from '../lib/actions';
+import { manualRelease } from '../services/mutations';
 import { cx, fmtDateTime } from '../lib/format';
 import type { AccessType, Employee } from '../types';
 
@@ -28,7 +29,15 @@ export default function ManualRelease() {
   const results = dq.length >= 2 ? employees.filter((e) => matches(dq, e.full_name, e.code, e.document)).slice(0, 6) : [];
 
   const reset = () => { setEmp(null); setQ(''); setReason(''); setNote(''); setDone(false); };
-  const confirm = async () => { if (await runAction('Liberação manual registrada com auditoria')) setDone(true); };
+  const [saving, setSaving] = useState(false);
+  const confirm = async () => {
+    if (!emp) return;
+    setSaving(true);
+    const ok = await runAction('Liberação manual registrada com auditoria',
+      () => manualRelease({ event_id: emp.event_id, employee_id: emp.id, access_type: move, reason, note }), ['accessLogs', 'stats', 'audit']);
+    setSaving(false);
+    if (ok) setDone(true);
+  };
 
   return (
     <Page title="Liberação manual" subtitle="Autorize exceções com justificativa e registro de auditoria.">
@@ -90,7 +99,7 @@ export default function ManualRelease() {
                 <Select value={reason} onChange={(e) => setReason(e.target.value)}><option value="">Selecione o motivo</option>{REASONS.map((r) => <option key={r}>{r}</option>)}</Select>
               </Field>
               <Field label="Observação"><Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Detalhes para a auditoria" /></Field>
-              <Button icon={Check} disabled={!reason} onClick={confirm} className="w-full">Confirmar liberação</Button>
+              <Button icon={Check} disabled={!reason || !emp?.event_id} loading={saving} onClick={confirm} className="w-full">Confirmar liberação</Button>
               <p className="text-xs text-ink-muted">Registra quem autorizou, funcionário, evento, movimento, data e hora, dispositivo, motivo e observação na auditoria.</p>
             </div>
           )}

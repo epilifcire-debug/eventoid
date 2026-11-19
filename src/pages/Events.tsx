@@ -10,7 +10,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useData } from '../hooks/useData';
 import { canEdit } from '../lib/permissions';
 import { fmtDate } from '../lib/format';
-import { runAction } from '../lib/actions';
+import { formValues, runAction } from '../lib/actions';
+import { createEvent, type EventInput } from '../services/mutations';
 import { EVENT_STATUS_LABEL, type EventStatus } from '../types';
 
 export default function Events() {
@@ -68,27 +69,30 @@ export default function Events() {
 
 export function EventForm({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
-  const [name, setName] = useState('');
-  const save = async () => {
-    if (!name.trim()) { toast.error('Informe o nome do evento.'); return; }
-    setSaving(true); await runAction('Evento salvo como rascunho'); setSaving(false);
-    onClose(); setName('');
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const v = formValues(e.currentTarget);
+    if (!v.name) { toast.error('Informe o nome do evento.'); return; }
+    setSaving(true);
+    const done = await runAction('Evento salvo', () => createEvent(v as unknown as EventInput), ['events', 'stats']);
+    setSaving(false);
+    if (done) onClose();
   };
   return (
     <Modal open={open} onClose={onClose} title="Novo evento" size="lg"
-      footer={<><Button variant="outline" onClick={onClose}>Cancelar</Button><Button loading={saving} onClick={save}>Salvar evento</Button></>}>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2"><Field label="Nome" required><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Festival Horizonte 2026" /></Field></div>
-        <div className="sm:col-span-2"><Field label="Descrição"><Textarea placeholder="Resumo da operação" /></Field></div>
-        <Field label="Local" required><Input placeholder="Ex.: Parque da Cidade" /></Field>
-        <div className="grid grid-cols-[1fr_88px] gap-3"><Field label="Cidade" required><Input /></Field><Field label="UF" required><Input maxLength={2} className="uppercase" /></Field></div>
-        <Field label="Data e hora inicial" required><Input type="datetime-local" /></Field>
-        <Field label="Data e hora final" required><Input type="datetime-local" /></Field>
-        <Field label="Responsável"><Input placeholder="Nome do responsável" /></Field>
-        <Field label="Status"><Select defaultValue="draft">{Object.entries(EVENT_STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
-        <Field label="Validade offline (horas)" hint="Padrão de 24 h. Aviso após 6 h sem sincronizar."><Input type="number" min={1} defaultValue={24} /></Field>
-      </div>
-      <p className="mt-4 text-xs text-ink-muted">Setores, turnos, funcionários, operadores e dispositivos são vinculados nas abas do evento após salvar.</p>
+      footer={<><Button variant="outline" onClick={onClose}>Cancelar</Button><Button type="submit" form="event-form" loading={saving}>Salvar evento</Button></>}>
+      <form id="event-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
+        <div className="sm:col-span-2"><Field label="Nome" required><Input name="name" required placeholder="Ex.: Festival Horizonte 2026" /></Field></div>
+        <div className="sm:col-span-2"><Field label="Descrição"><Textarea name="description" placeholder="Resumo da operação" /></Field></div>
+        <Field label="Local"><Input name="venue_name" placeholder="Ex.: Parque da Cidade" /></Field>
+        <div className="grid grid-cols-[1fr_88px] gap-3"><Field label="Cidade"><Input name="city" /></Field><Field label="UF"><Input name="state" maxLength={2} className="uppercase" /></Field></div>
+        <Field label="Data e hora inicial"><Input name="starts_at" type="datetime-local" /></Field>
+        <Field label="Data e hora final"><Input name="ends_at" type="datetime-local" /></Field>
+        <Field label="Responsável"><Input name="manager_name" placeholder="Nome do responsável" /></Field>
+        <Field label="Status"><Select name="status" defaultValue="draft">{Object.entries(EVENT_STATUS_LABEL).filter(([k]) => k !== 'archived' && k !== 'finished').map(([k, v]) => <option key={k} value={k}>{v}</option>)}</Select></Field>
+        <Field label="Validade offline (horas)" hint="Padrão de 24 h. Aviso após 6 h sem sincronizar."><Input name="offline_hours" type="number" min={1} max={168} defaultValue={24} /></Field>
+      </form>
+      <p className="mt-4 text-xs text-ink-muted">Setores, turnos, funcionários, operadores e dispositivos são vinculados depois de salvar.</p>
     </Modal>
   );
 }

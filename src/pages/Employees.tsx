@@ -9,7 +9,9 @@ import { EmployeeStatusBadge, FaceBadge } from '../components/ui/status';
 import { useAuth } from '../hooks/useAuth';
 import { useData } from '../hooks/useData';
 import { canEdit } from '../lib/permissions';
-import { runAction } from '../lib/actions';
+import { formValues, runAction } from '../lib/actions';
+import { approveEmployee, createEmployee, setEmployeeBlocked, type EmployeeInput } from '../services/mutations';
+import { DEMO_MODE } from '../lib/config';
 import { hideCPF, maskCPF, maskPhone } from '../lib/format';
 import type { Employee } from '../types';
 
@@ -63,10 +65,10 @@ export default function Employees() {
       <Modal open={!!sel} onClose={() => setSel(null)} title="Funcionário" size="lg"
         footer={sel && editable && (
           <>
-            {sel.status === 'pending' && <Button variant="success" icon={ShieldCheck} onClick={async () => { await runAction('Autocadastro aprovado'); setSel(null); }}>Aprovar cadastro</Button>}
+            {sel.status === 'pending' && <Button variant="success" icon={ShieldCheck} onClick={async () => { if (await runAction('Cadastro aprovado', () => approveEmployee(sel.id), ['employees'])) setSel(null); }}>Aprovar cadastro</Button>}
             {sel.status === 'blocked'
-              ? <Button variant="outline" icon={Unlock} onClick={async () => { await runAction('Funcionário desbloqueado'); setSel(null); }}>Desbloquear</Button>
-              : <Button variant="danger" icon={Lock} onClick={async () => { await runAction('Funcionário bloqueado'); setSel(null); }}>Bloquear</Button>}
+              ? <Button variant="outline" icon={Unlock} onClick={async () => { if (await runAction('Funcionário desbloqueado', () => setEmployeeBlocked(sel.id, false), ['employees'])) setSel(null); }}>Desbloquear</Button>
+              : <Button variant="danger" icon={Lock} onClick={async () => { if (await runAction('Funcionário bloqueado', () => setEmployeeBlocked(sel.id, true), ['employees'])) setSel(null); }}>Bloquear</Button>}
             <Link to="/cadastro-facial"><Button icon={ScanFace} className="w-full">Cadastro facial</Button></Link>
           </>
         )}>
@@ -83,9 +85,11 @@ export default function Employees() {
       </Modal>
 
       <Modal open={linkOpen} onClose={() => setLinkOpen(false)} title="Link de autocadastro"
-        footer={<Button icon={Copy} onClick={() => { toast.info('Link copiado'); setLinkOpen(false); }}>Copiar link</Button>}>
+        footer={DEMO_MODE ? <Button icon={Copy} onClick={() => { toast.info('Link copiado'); setLinkOpen(false); }}>Copiar link</Button> : <Button variant="outline" onClick={() => setLinkOpen(false)}>Fechar</Button>}>
         <p className="text-sm text-ink-muted">Envie este link aos funcionários. Os cadastros ficam <strong className="text-ink">pendentes de aprovação</strong> até um administrador conferir os dados e a foto.</p>
-        <div className="mt-4 rounded-btn border border-line bg-bg px-3 py-3 font-mono text-xs break-all">https://app.eventoid.com.br/autocadastro/festival-horizonte-2026</div>
+        {DEMO_MODE
+          ? <div className="mt-4 rounded-btn border border-line bg-bg px-3 py-3 font-mono text-xs break-all">https://app.eventoid.com.br/autocadastro/festival-horizonte-2026</div>
+          : <p className="mt-4 rounded-btn bg-warning-light px-3 py-3 text-sm text-[#B45309]">A página pública de autocadastro será ativada na próxima etapa.</p>}
       </Modal>
     </Page>
   );
@@ -94,23 +98,40 @@ export default function Employees() {
 function EmployeeForm({ open, onClose }: { open: boolean; onClose: () => void }) {
   const sectors = useData('sectors').data ?? [];
   const shifts = useData('shifts').data ?? [];
-  const events = useData('events').data ?? [];
+  const events = (useData('events').data ?? []).filter((e) => !['finished', 'archived', 'cancelled'].includes(e.status));
   const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
+  const [eventId, setEventId] = useState('');
   const [saving, setSaving] = useState(false);
+  const ev = eventId || events[0]?.id || '';
+  const evSectors = sectors.filter((s) => s.event_id === ev);
+  const evShifts = shifts.filter((s) => s.event_id === ev);
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const v = formValues(e.currentTarget) as unknown as EmployeeInput;
+    if (!v.full_name) { toast.error('Informe o nome completo.'); return; }
+    setSaving(true);
+    const ok = await runAction('Funcionário cadastrado', () => createEmployee(v), ['employees', 'sectors']);
+    setSaving(false);
+    if (ok) { setCpf(''); setPhone(''); onClose(); }
+  };
   return (
     <Modal open={open} onClose={onClose} title="Novo funcionário" size="lg"
-      footer={<><Button variant="outline" onClick={onClose}>Cancelar</Button><Button loading={saving} onClick={async () => { setSaving(true); await runAction('Funcionário cadastrado'); setSaving(false); onClose(); }}>Salvar e seguir para foto</Button></>}>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2"><Field label="Nome completo" required><Input autoComplete="off" /></Field></div>
-        <Field label="CPF" required><Input inputMode="numeric" value={cpf} onChange={(e) => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" /></Field>
-        <Field label="Telefone"><Input inputMode="tel" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} placeholder="(79) 99999-9999" /></Field>
-        <div className="sm:col-span-2"><Field label="E-mail"><Input type="email" inputMode="email" /></Field></div>
-        <Field label="Evento" required><Select>{events.map((e) => <option key={e.id}>{e.name}</option>)}</Select></Field>
-        <Field label="Setor" required hint="Um único setor por evento."><Select>{sectors.map((s) => <option key={s.id}>{s.name}</option>)}</Select></Field>
-        <Field label="Turno"><Select>{shifts.map((s) => <option key={s.id}>{s.name} ({s.start}–{s.end})</option>)}</Select></Field>
-        <Field label="Código" hint="Gerado automaticamente"><Input disabled placeholder="FUN-00000" /></Field>
-      </div>
+      footer={<><Button variant="outline" onClick={onClose}>Cancelar</Button><Button type="submit" form="employee-form" loading={saving}>Salvar funcionário</Button></>}>
+      <form id="employee-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
+        <div className="sm:col-span-2"><Field label="Nome completo" required><Input name="full_name" autoComplete="off" required /></Field></div>
+        <Field label="CPF"><Input name="cpf" inputMode="numeric" value={cpf} onChange={(e) => setCpf(maskCPF(e.target.value))} placeholder="000.000.000-00" /></Field>
+        <Field label="Telefone"><Input name="phone" inputMode="tel" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} placeholder="(79) 99999-9999" /></Field>
+        <div className="sm:col-span-2"><Field label="E-mail"><Input name="email" type="email" inputMode="email" /></Field></div>
+        <Field label="Evento"><Select name="event_id" value={ev} onChange={(e) => setEventId(e.target.value)}>
+          {events.length === 0 && <option value="">Nenhum evento disponível</option>}
+          {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+        </Select></Field>
+        <Field label="Setor" hint="Um único setor por evento."><Select name="sector_id"><option value="">Sem setor</option>{evSectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></Field>
+        <Field label="Turno"><Select name="shift_id"><option value="">Sem turno</option>{evShifts.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.start}–{s.end})</option>)}</Select></Field>
+        <Field label="Código" hint="Gerado automaticamente ao salvar"><Input disabled placeholder="FUN-00000" /></Field>
+      </form>
+      <p className="mt-4 text-xs text-ink-muted">Depois de salvar, faça a captura em Cadastro facial.</p>
     </Modal>
   );
 }

@@ -146,7 +146,7 @@ export const demoAudit: AuditEntry[] = [
 ];
 
 export const demoConsents: ConsentEntry[] = demoEmployees.slice(0, 14).map((e, i) => ({
-  id: `c${i}`, employee_name: e.full_name, term_version: 'v1.2',
+  id: `c${i}`, employee_id: e.id, employee_name: e.full_name, term_version: 'v1.2',
   accepted_at: e.consent ? iso(now - (i + 2) * 5 * H) : null,
   accepted_by: e.self_registered ? 'Autocadastro (link)' : 'Admin Silva',
   status: i === 6 ? 'revoked' : e.consent ? 'accepted' : 'pending',

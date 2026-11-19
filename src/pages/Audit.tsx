@@ -5,7 +5,7 @@ import { Avatar, Badge, MiniStat } from '../components/ui';
 import { DataTable } from '../components/ui/DataTable';
 import { ListCard, StatsRow, Toolbar, matches, useDebounced } from '../components/ui/ListKit';
 import { useData } from '../hooks/useData';
-import { runAction } from '../lib/actions';
+import { downloadCSV } from '../lib/csv';
 import { fmtDateTime } from '../lib/format';
 
 export default function Audit() {
@@ -19,7 +19,7 @@ export default function Audit() {
   return (
     <Page title="Auditoria" subtitle="Rastreie ações sensíveis e alterações no sistema.">
       <div className="space-y-5">
-        <Toolbar placeholder="Buscar em auditoria..." value={q} onChange={setQ} actionLabel="Exportar auditoria" actionIcon={Download} onAction={() => runAction('Auditoria exportada')}
+        <Toolbar placeholder="Buscar em auditoria..." value={q} onChange={setQ} actionLabel="Exportar auditoria" actionIcon={Download} onAction={() => downloadCSV(`eventoid-auditoria-${new Date().toISOString().slice(0, 10)}.csv`, ['Quando', 'Quem', 'Ação', 'Entidade', 'Detalhe', 'Sensível'], rows.map((a) => [fmtDateTime(a.created_at), a.actor, a.action, a.entity, a.detail, a.sensitive ? 'Sim' : 'Não']))}
           onFilters={() => setOnlySensitive((v) => !v)} filtersActive={onlySensitive} />
         <StatsRow>
           <MiniStat label="Ações" value={data.length} icon={CheckCircle2} tone="success" />

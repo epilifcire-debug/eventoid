@@ -634,7 +634,7 @@ grant select, insert, update on public.employees, public.employee_faces, public.
   public.user_event_permissions, public.devices, public.reader_settings, public.employee_consents to authenticated;
 grant delete on public.employee_faces, public.event_employees, public.user_event_permissions to authenticated;
 grant select on public.access_logs, public.audit_logs to authenticated;
-grant select, insert on public.consent_terms to authenticated;
+grant select, insert, update on public.consent_terms to authenticated;
 grant select, update on public.app_settings to authenticated;
 grant usage on sequence public.employee_code_seq to authenticated;
 
@@ -992,7 +992,7 @@ select a.id, coalesce(private.profile_name(a.actor_user_id), 'Sistema') as actor
 from public.audit_logs a;
 
 create view public.v_consents with (security_invoker = true) as
-select c.id, e.full_name as employee_name, t.version as term_version, c.accepted_at, coalesce(c.accepted_by, '—') as accepted_by, c.status
+select c.id, c.employee_id, e.full_name as employee_name, t.version as term_version, c.accepted_at, coalesce(c.accepted_by, '—') as accepted_by, c.status
 from public.employee_consents c
 join public.employees e on e.id = c.employee_id
 join public.consent_terms t on t.id = c.term_id;

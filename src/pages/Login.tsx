@@ -10,11 +10,12 @@ import { cx } from '../lib/format';
 import { ROLE_LABEL, type Role } from '../types';
 import { Alert } from '../components/ui';
 import { EfcsysSignature } from '../components/layout/EfcsysSignature';
+import { InstallBanner } from '../components/layout/InstallBanner';
 
 const ROLES: Role[] = ['admin_master', 'admin', 'supervisor', 'reader', 'viewer'];
 
 export default function Login() {
-  const { signIn } = useAuth();
+  const { signIn, resetPassword } = useAuth();
   const nav = useNavigate();
   const [email, setEmail] = useState(DEMO_MODE ? 'demo@eventoid.com.br' : '');
   const [password, setPassword] = useState(DEMO_MODE ? 'demonstracao' : '');
@@ -101,7 +102,7 @@ export default function Login() {
               </label>
               <div className="flex items-center justify-between gap-3 text-sm">
                 <label className="flex min-h-[44px] items-center gap-2 text-ink"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-primary" />Lembrar acesso</label>
-                <button type="button" onClick={() => setForgot(true)} className="min-h-[44px] font-medium text-primary hover:underline">Esqueci minha senha</button>
+                <button type="button" onClick={async () => { if (!email.trim()) { setError('Informe o e-mail para recuperar a senha.'); return; } setError(''); await resetPassword(email.trim()).catch(() => {}); setForgot(true); }} className="min-h-[44px] font-medium text-primary hover:underline">Esqueci minha senha</button>
               </div>
               {forgot && <Alert tone="info" title="Recuperação de senha">Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.</Alert>}
               {error && <Alert tone="danger" title="Não foi possível entrar">{error}</Alert>}
@@ -110,6 +111,7 @@ export default function Login() {
               </button>
             </form>
           </div>
+          <InstallBanner className="mt-4" />
         </div>
         <div className="text-center text-xs text-ink-muted">
           <p>EVENTOID v{APP_VERSION}</p>

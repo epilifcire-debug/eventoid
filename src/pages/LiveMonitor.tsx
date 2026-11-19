@@ -5,7 +5,8 @@ import { Badge, MiniStat, Select } from '../components/ui';
 import { ListCard, StatsRow, Toolbar, matches, useDebounced } from '../components/ui/ListKit';
 import { AccessTable } from './Dashboard';
 import { useData } from '../hooks/useData';
-import { runAction } from '../lib/actions';
+import { downloadCSV } from '../lib/csv';
+import { fmtDateTime } from '../lib/format';
 
 export default function LiveMonitor() {
   const { data = [], isLoading, error, refetch } = useData('accessLogs');
@@ -21,7 +22,7 @@ export default function LiveMonitor() {
     <Page title="Monitoramento ao vivo" subtitle="Acompanhe entradas, saídas e negativas em tempo real.">
       <div className="space-y-5">
         <Toolbar placeholder="Buscar em monitoramento ao vivo..." value={q} onChange={setQ} actionLabel="Exportar acessos" actionIcon={Download}
-          onAction={() => runAction('Exportação gerada')} onFilters={() => setShowF((v) => !v)} filtersActive={!!(result || move)} />
+          onAction={() => downloadCSV(`eventoid-acessos-${new Date().toISOString().slice(0, 10)}.csv`, ['Data e hora', 'Funcionário', 'Setor', 'Movimento', 'Resultado', 'Motivo', 'Dispositivo', 'Operador'], rows.map((l) => [fmtDateTime(l.occurred_at), l.employee_name, l.sector_name, l.access_type === 'entry' ? 'Entrada' : 'Saída', l.decision === 'allowed' ? 'Liberado' : 'Negado', l.reason ?? '', l.device_name, l.operator_name]))} onFilters={() => setShowF((v) => !v)} filtersActive={!!(result || move)} />
         {showF && (
           <div className="grid gap-3 sm:grid-cols-3">
             <Select value={result} onChange={(e) => setResult(e.target.value)} aria-label="Resultado"><option value="">Todos os resultados</option><option value="allowed">Liberado</option><option value="denied">Negado</option></Select>

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Camera, Check, CheckCircle2, Clock, RotateCcw, ScanFace } from 'lucide-react';
 import { Page } from '../components/layout/AppShell';
-import { Alert, Avatar, Button, Card, CardHeader, MiniStat, Modal, Select } from '../components/ui';
+import { Alert, Avatar, Button, Card, CardHeader, MiniStat, Modal, Select, toast } from '../components/ui';
 import { DataTable } from '../components/ui/DataTable';
 import { ListCard, StatsRow, Toolbar, matches, useDebounced } from '../components/ui/ListKit';
 import { FaceBadge } from '../components/ui/status';
 import { useData } from '../hooks/useData';
 import { runAction } from '../lib/actions';
+import { saveFaceCaptures } from '../services/mutations';
 import { cx } from '../lib/format';
 import { DEMO_MODE } from '../lib/config';
 
@@ -16,12 +17,13 @@ export default function FaceEnroll() {
   const { data = [], isLoading, error, refetch } = useData('employees');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [target, setTarget] = useState<string>('');
   const dq = useDebounced(q);
   const rows = data.filter((e) => matches(dq, e.full_name, e.code));
   return (
     <Page title="Cadastro facial" subtitle="Capture e revise as imagens usadas no reconhecimento.">
       <div className="space-y-5">
-        <Toolbar placeholder="Buscar em cadastro facial..." value={q} onChange={setQ} actionLabel="Iniciar captura" actionIcon={Camera} onAction={() => setOpen(true)} />
+        <Toolbar placeholder="Buscar em cadastro facial..." value={q} onChange={setQ} actionLabel="Iniciar captura" actionIcon={Camera} onAction={() => { setTarget(''); setOpen(true); }} />
         <StatsRow>
           <MiniStat label="Cadastros concluídos" value={data.filter((e) => e.face_status === 'complete').length} icon={CheckCircle2} tone="success" />
           <MiniStat label="Aguardando aprovação" value={data.filter((e) => e.face_status === 'pending').length} icon={Clock} tone="primary" />
@@ -33,41 +35,38 @@ export default function FaceEnroll() {
               { key: 'n', header: 'Funcionário', render: (r) => <span className="flex items-center gap-3"><Avatar name={r.full_name} size={34} /><span className="font-medium">{r.full_name}</span></span> },
               { key: 'c', header: 'Código', render: (r) => <span className="tabular-nums text-ink-muted">{r.code}</span> },
               { key: 'f', header: 'Situação facial', render: (r) => <FaceBadge s={r.face_status} /> },
-              { key: 'a', header: '', className: 'text-right', render: (r) => r.face_status !== 'complete' && <Button variant="outline" icon={ScanFace} onClick={() => setOpen(true)}>{r.face_status === 'none' ? 'Capturar' : 'Refazer'}</Button> },
+              { key: 'a', header: '', className: 'text-right', render: (r) => r.face_status !== 'complete' && <Button variant="outline" icon={ScanFace} onClick={() => { setTarget(r.id); setOpen(true); }}>{r.face_status === 'none' ? 'Capturar' : 'Refazer'}</Button> },
             ]}
             mobile={(r) => <div className="flex items-center gap-3"><Avatar name={r.full_name} size={40} /><div className="flex-1"><p className="font-medium">{r.full_name}</p><p className="text-xs text-ink-muted">{r.code}</p></div><FaceBadge s={r.face_status} /></div>} />
         </ListCard>
       </div>
-      <CaptureWizard open={open} onClose={() => setOpen(false)} />
+      <CaptureWizard open={open} initial={target} onClose={() => setOpen(false)} />
     </Page>
   );
 }
 
-function CaptureWizard({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CaptureWizard({ open, onClose, initial }: { open: boolean; onClose: () => void; initial: string }) {
   const employees = useData('employees').data ?? [];
+  const pending = employees.filter((e) => e.face_status !== 'complete' || e.id === initial);
+  const [empId, setEmpId] = useState('');
   const [step, setStep] = useState(0);
   const [shots, setShots] = useState<Array<string | null>>([null, null, null]);
   const [blurry, setBlurry] = useState(false);
   const [camErr, setCamErr] = useState(false);
+  const [saving, setSaving] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    setStep(0); setShots([null, null, null]); setCamErr(false);
+    setStep(0); setShots([null, null, null]); setCamErr(false); setBlurry(false); setEmpId(initial);
     navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'user' } })
       .then((s) => { stream.current = s; if (video.current) video.current.srcObject = s; })
       .catch(() => setCamErr(true));
     return () => { stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null; };
-  }, [open]);
+  }, [open, initial]);
 
-  const capture = () => {
-    let data = 'placeholder';
-    const v = video.current;
-    if (v && v.videoWidth) {
-      const c = document.createElement('canvas'); c.width = 360; c.height = 360 * (v.videoHeight / v.videoWidth);
-      c.getContext('2d')!.drawImage(v, 0, 0, c.width, c.height); data = c.toDataURL('image/jpeg', 0.8);
-    }
+  const accept = (data: string) => {
     // Detecção de foto turva: na demonstração o aviso aparece de forma aleatória; a análise real entra com o módulo facial.
     const isBlurry = DEMO_MODE && Math.random() < 0.15;
     setBlurry(isBlurry);
@@ -75,16 +74,41 @@ function CaptureWizard({ open, onClose }: { open: boolean; onClose: () => void }
     setShots((s) => s.map((x, i) => (i === step ? data : x)));
     setStep((s) => s + 1);
   };
+  const capture = () => {
+    const v = video.current;
+    if (v && v.videoWidth) {
+      const c = document.createElement('canvas'); c.width = 480; c.height = Math.round(480 * (v.videoHeight / v.videoWidth));
+      c.getContext('2d')!.drawImage(v, 0, 0, c.width, c.height); accept(c.toDataURL('image/jpeg', 0.85));
+    } else if (DEMO_MODE) accept('placeholder');
+  };
+  const fromFile = (f?: File) => {
+    if (!f) return;
+    if (!f.type.startsWith('image/')) { toast.error('Envie uma imagem.'); return; }
+    const r = new FileReader(); r.onload = () => accept(String(r.result)); r.readAsDataURL(f);
+  };
+  const save = async () => {
+    const id = empId || pending[0]?.id;
+    if (!id) { toast.error('Selecione o funcionário.'); return; }
+    setSaving(true);
+    const blobs = await Promise.all(shots.map(async (s) => (s && s !== 'placeholder' ? (await fetch(s)).blob() : null)));
+    const ok = await runAction('Cadastro facial salvo', () => saveFaceCaptures(id, blobs), ['employees']);
+    setSaving(false);
+    if (ok) onClose();
+  };
+  const current = empId || pending[0]?.id || '';
 
   return (
     <Modal open={open} onClose={onClose} title="Captura facial guiada" size="lg"
       footer={
-        step < 3 ? <Button icon={Camera} onClick={capture}>Capturar {STEPS[step].toLowerCase()}</Button>
-          : step === 3 ? <><Button variant="outline" onClick={() => setStep(0)}>Refazer todas</Button><Button icon={Check} onClick={() => setStep(4)}>Confirmar fotos</Button></>
-          : <Button onClick={async () => { await runAction('Cadastro facial enviado para revisão'); onClose(); }}>Concluir</Button>
+        step < 3 ? (!camErr || DEMO_MODE ? <Button icon={Camera} onClick={capture}>Capturar {STEPS[step].toLowerCase()}</Button> : null)
+          : step === 3 ? <><Button variant="outline" onClick={() => { setShots([null, null, null]); setStep(0); }}>Refazer todas</Button><Button icon={Check} onClick={() => setStep(4)}>Confirmar fotos</Button></>
+          : <Button loading={saving} onClick={save}>Salvar cadastro facial</Button>
       }>
       <div className="space-y-4">
-        <Select aria-label="Funcionário">{employees.filter((e) => e.face_status !== 'complete').map((e) => <option key={e.id}>{e.full_name} — {e.code}</option>)}</Select>
+        <Select aria-label="Funcionário" value={current} onChange={(e) => setEmpId(e.target.value)} disabled={step > 0}>
+          {pending.length === 0 && <option value="">Nenhum funcionário pendente</option>}
+          {pending.map((e) => <option key={e.id} value={e.id}>{e.full_name} — {e.code}</option>)}
+        </Select>
         <ol className="flex gap-1.5">
           {STEPS.map((s, i) => <li key={s} title={s} className={cx('h-1.5 flex-1 rounded-full', i < step ? 'bg-success' : i === step ? 'bg-primary' : 'bg-slate-200')} />)}
         </ol>
@@ -93,7 +117,14 @@ function CaptureWizard({ open, onClose }: { open: boolean; onClose: () => void }
         {step < 3 && (
           <div className="relative mx-auto aspect-[3/4] w-full max-w-xs overflow-hidden rounded-card bg-navy">
             {!camErr && <video ref={video} autoPlay playsInline muted className="h-full w-full -scale-x-100 object-cover" />}
-            {camErr && <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-sm text-slate-300"><Camera className="h-8 w-8" />Câmera indisponível neste navegador. A captura usa uma imagem de teste.</div>}
+            {camErr && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-sm text-slate-300">
+                <Camera className="h-8 w-8" />Câmera indisponível neste navegador.
+                <label className="cursor-pointer rounded-btn bg-primary px-4 py-2.5 font-semibold text-white">
+                  Enviar foto<input type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => { fromFile(e.target.files?.[0]); e.target.value = ''; }} />
+                </label>
+              </div>
+            )}
             <div aria-hidden className="pointer-events-none absolute inset-[14%_18%] rounded-[50%] border-2 border-white/80 shadow-[0_0_0_999px_rgba(11,25,48,.35)]" style={{ transform: step === 1 ? 'rotate(-6deg)' : step === 2 ? 'rotate(6deg)' : undefined }} />
             <p className="absolute inset-x-0 bottom-3 text-center text-sm font-medium text-white">{step === 0 ? 'Olhe para a câmera' : step === 1 ? 'Vire levemente para a esquerda' : 'Vire levemente para a direita'}</p>
           </div>
@@ -109,7 +140,7 @@ function CaptureWizard({ open, onClose }: { open: boolean; onClose: () => void }
                   {i === 0 && <span className="absolute left-1.5 top-1.5 rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-white">PERFIL</span>}
                 </div>
                 <p className="mt-1 text-xs text-ink-muted">{['Frontal', 'Esquerda', 'Direita'][i]}</p>
-                {step === 3 && <button onClick={() => { setStep(i); }} className="mt-1 inline-flex min-h-[36px] items-center gap-1 text-xs font-medium text-primary"><RotateCcw className="h-3 w-3" />Refazer</button>}
+                {step === 3 && <button type="button" onClick={() => setStep(i)} className="mt-1 inline-flex min-h-[36px] items-center gap-1 text-xs font-medium text-primary"><RotateCcw className="h-3 w-3" />Refazer</button>}
               </div>
             ))}
           </div>

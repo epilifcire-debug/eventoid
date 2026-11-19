@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { DEMO_MODE, READER_REREAD_BLOCK_SECONDS, READER_RESULT_SECONDS } from '../lib/config';
 import { cx, fmtTime, initials, relTime } from '../lib/format';
 import { READER_MODE_LABEL } from '../types';
-import { demoLookupCode, demoNextCandidate, demoRecognize, getReaderContext, type ReaderContext, type ReaderContextResult, type RecognitionResult } from '../services/reader';
+import { demoLookupCode, demoNextCandidate, demoRecognize, getReaderContext, loadReaderDataset, registerAccess, type ReaderContext, type ReaderContextResult, type ReaderEmployee, type RecognitionResult } from '../services/reader';
 import { EfcsysSignature } from '../components/layout/EfcsysSignature';
 
 type Phase = 'waiting' | 'processing' | 'allowed' | 'denied';
@@ -53,7 +53,12 @@ export default function Reader() {
   const lastId = useRef<string | null>(null);
   const busy = useRef(false);
 
+  const dataset = useRef<ReaderEmployee[]>([]);
   useEffect(() => { getReaderContext().then(setCtxRes).catch(() => setCtxRes({ ok: false, reason: 'no_backend' })); }, []);
+  useEffect(() => {
+    if (DEMO_MODE || !ctxRes?.ok) return;
+    loadReaderDataset().then((d) => { dataset.current = d; }).catch(() => {});
+  }, [ctxRes]);
   const ctx: ReaderContext | null = ctxRes?.ok ? ctxRes.ctx : null;
   const cam = useCamera(!!ctx);
 
@@ -96,10 +101,22 @@ export default function Reader() {
     return () => clearTimeout(t);
   }, [auto, phase, ctx, detect]);
 
-  const submitCode = () => {
-    const r = DEMO_MODE ? demoLookupCode(code) : null;
-    if (!r) { setNote('Código não encontrado neste evento'); setTimeout(() => setNote(''), 2500); return; }
-    setCodeOpen(false); setCode(''); show(r);
+  const flash = (t: string) => { setNote(t); setTimeout(() => setNote(''), 2500); };
+  const submitCode = async () => {
+    if (DEMO_MODE) {
+      const r = demoLookupCode(code);
+      if (!r) { flash('Código não encontrado neste evento'); return; }
+      setCodeOpen(false); setCode(''); show(r); return;
+    }
+    // Busca só pelo código digitado, dentro do evento do leitor (nunca lista funcionários)
+    const c = code.trim().toUpperCase();
+    const emp = dataset.current.find((e) => e.code.toUpperCase() === c || e.code.toUpperCase().endsWith(c.replace(/\D/g, '').padStart(5, '0')));
+    if (!emp || !ctx) { flash('Código não encontrado neste evento'); return; }
+    try {
+      const r = await registerAccess(ctx, emp.employee_id, null);
+      if (!r) { flash('Leitura repetida — aguarde o intervalo'); return; }
+      setCodeOpen(false); setCode(''); show(r);
+    } catch { flash('Falha ao registrar. Verifique a conexão.'); }
   };
 
   /* ----- Sem evento / erro de configuração ----- */
@@ -190,6 +207,22 @@ export default function Reader() {
             </p>
             <p className="-mt-1 text-sm text-ink-muted">Última sincronização: {ctx ? relTime(ctx.last_sync_at) : '—'}{lastRead && <> · Última leitura {fmtTime(lastRead)}</>}</p>
             <div className="flex items-center justify-center gap-2 rounded-btn bg-bg py-3 text-sm text-ink"><Database className="h-4 w-4 text-ink-muted" />Dados válidos por {ctx?.offline_hours ?? 24}h</div>
+            {!DEMO_MODE && ctx && (
+              codeOpen ? (
+                <form onSubmit={(e) => { e.preventDefault(); submitCode(); }} className="space-y-2 text-left">
+                  <label className="block text-sm font-semibold text-ink">Código do funcionário
+                    <input autoFocus value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="FUN-00241"
+                      className="mt-1.5 min-h-[52px] w-full rounded-btn border border-line px-4 text-center text-lg font-semibold tracking-wider focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => { setCodeOpen(false); setCode(''); }} className="min-h-[48px] rounded-btn border border-line font-semibold text-ink">Cancelar</button>
+                    <button type="submit" className="min-h-[48px] rounded-btn bg-primary font-semibold text-white">Registrar</button>
+                  </div>
+                </form>
+              ) : (
+                <button type="button" onClick={() => setCodeOpen(true)} className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-btn border border-primary font-semibold text-primary"><KeyRound className="h-4 w-4" />Informar código</button>
+              )
+            )}
           </div>
         </>
       )}
@@ -224,7 +257,7 @@ function ReaderFrame({ children, onLogout }: { children: React.ReactNode; onLogo
           <button onClick={onLogout} className="flex min-h-[44px] items-center gap-2 rounded-btn border-2 border-white/80 px-4 text-sm font-semibold text-white hover:bg-white/10"><LogOut className="h-4 w-4" />Sair</button>
         </header>
         <div className="flex flex-1 flex-col">{children}</div>
-        <EfcsysSignature className="bg-navy py-2 text-center text-[10px] text-slate-500" />
+        <EfcsysSignature className="bg-navy pb-[max(8px,env(safe-area-inset-bottom))] pt-2 text-center text-[10px] text-slate-500" />
       </div>
     </div>
   );

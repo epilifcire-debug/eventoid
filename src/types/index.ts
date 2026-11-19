@@ -15,6 +15,7 @@ export interface Profile {
   role: Role;
   active: boolean;
   avatar_url?: string | null;
+  must_change_password?: boolean;
 }
 
 export type EventStatus = 'draft' | 'scheduled' | 'active' | 'finished' | 'archived' | 'cancelled';
@@ -156,11 +157,25 @@ export interface AuditEntry {
 
 export interface ConsentEntry {
   id: string;
+  employee_id?: string;
   employee_name: string;
   term_version: string;
   accepted_at: string | null;
   accepted_by: string;
   status: 'accepted' | 'pending' | 'revoked';
+}
+
+export interface AppSettings {
+  offline_hours: number;
+  offline_warn_hours: number;
+  full_sync_hours_before: number;
+  queue_alert_threshold: number;
+  reread_interval_s: number;
+  result_time_s: number;
+  denied_streak_alert: number;
+  signature_path: string | null;
+  signature_visible: boolean;
+  signature_link: string | null;
 }
 
 export interface AlertItem {

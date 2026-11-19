@@ -8,6 +8,9 @@ interface AuthState {
   loading: boolean;
   signIn: (email: string, password: string, demoRole?: Role) => Promise<Profile>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  setNewPassword: (password: string) => Promise<void>;
+  recovering: boolean;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -28,7 +31,7 @@ const store = {
 };
 
 async function loadProfile(userId: string): Promise<Profile> {
-  const { data, error } = await supabase!.from('profiles').select('id, full_name, email, role, active, avatar_url').eq('id', userId).single();
+  const { data, error } = await supabase!.from('profiles').select('id, full_name, email, role, active, avatar_url, must_change_password').eq('id', userId).single();
   if (error || !data) throw new Error('Perfil não encontrado. Procure um administrador.');
   if (!data.active) throw new Error('Usuário inativo. Procure um administrador.');
   return data as Profile;
@@ -37,6 +40,7 @@ async function loadProfile(userId: string): Promise<Profile> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recovering, setRecovering] = useState(false);
 
   useEffect(() => {
     if (DEMO_MODE) {
@@ -50,7 +54,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.session) { try { setProfile(await loadProfile(data.session.user.id)); } catch { await supabase!.auth.signOut(); } }
       setLoading(false);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((evt) => { if (evt === 'SIGNED_OUT') setProfile(null); });
+    const { data: sub } = supabase.auth.onAuthStateChange((evt, session) => {
+      if (evt === 'SIGNED_OUT') setProfile(null);
+      // link de convite ou de recuperação: a sessão chega pela URL
+      if (evt === 'PASSWORD_RECOVERY') setRecovering(true);
+      if ((evt === 'SIGNED_IN' || evt === 'PASSWORD_RECOVERY') && session) {
+        setTimeout(() => { loadProfile(session.user.id).then(setProfile).catch(() => {}); }, 0);
+      }
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -77,7 +88,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }, []);
 
-  const value = useMemo(() => ({ profile, loading, signIn, signOut }), [profile, loading, signIn, signOut]);
+  const resetPassword = useCallback(async (email: string) => {
+    if (DEMO_MODE) { await new Promise((r) => setTimeout(r, 500)); return; }
+    if (!supabase) throw new Error('Servidor não configurado.');
+    // Resposta sempre neutra: não revela se o e-mail existe
+    await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/definir-senha` });
+  }, []);
+
+  const setNewPassword = useCallback(async (password: string) => {
+    if (!supabase) throw new Error('Servidor não configurado.');
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw new Error(/weak|short|least/i.test(error.message) ? 'Senha fraca. Use pelo menos 8 caracteres com letras e números.' : 'Não foi possível salvar a senha.');
+    await supabase.rpc('password_changed');
+    setRecovering(false);
+    setProfile((p) => (p ? { ...p, must_change_password: false } : p));
+  }, []);
+
+  const value = useMemo(() => ({ profile, loading, signIn, signOut, resetPassword, setNewPassword, recovering }),
+    [profile, loading, signIn, signOut, resetPassword, setNewPassword, recovering]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

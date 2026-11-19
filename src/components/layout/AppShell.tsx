@@ -13,6 +13,7 @@ import { cx, relTime } from '../../lib/format';
 import { ROLE_LABEL } from '../../types';
 import { Avatar, Badge } from '../ui';
 import { EfcsysSignature } from './EfcsysSignature';
+import { InstallBanner } from './InstallBanner';
 
 export const NAV: Array<{ key: NavKey; to: string; label: string; icon: LucideIcon }> = [
   { key: 'dashboard', to: '/dashboard', label: 'Visão geral', icon: LayoutGrid },
@@ -37,7 +38,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { profile } = useAuth();
   return (
     <div className="flex h-full flex-col bg-navy text-slate-300">
-      <div className="flex h-[78px] items-center border-b border-white/10 px-6">
+      <div className="flex h-[78px] shrink-0 items-center border-b border-white/10 px-6 pt-[env(safe-area-inset-top)] box-content">
         <img src={logoLight} alt="EVENTOID" className="h-7 w-auto" />
       </div>
       <nav aria-label="Menu principal" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
@@ -48,7 +49,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </NavLink>
         ))}
       </nav>
-      <div className="border-t border-white/10 px-5 py-5">
+      <div className="border-t border-white/10 px-5 pb-[max(20px,env(safe-area-inset-bottom))] pt-5">
+        <InstallBanner tone="dark" className="mb-4" />
         <p className="text-[13px] text-slate-200">Trabalho que faz o evento acontecer.</p>
         <EfcsysSignature className="mt-3 text-[11px] text-slate-400" />
       </div>
@@ -119,7 +121,7 @@ export function Page({ title, subtitle, actions, children }: { title: string; su
   const logout = async () => { await signOut(); nav('/login', { replace: true }); };
   return (
     <>
-      <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-line bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="flex min-h-[78px] items-center gap-3 px-4 sm:px-7">
           <button aria-label="Abrir menu" onClick={openMenu} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-btn text-ink hover:bg-bg lg:hidden"><Menu className="h-5 w-5" /></button>
           <div className="min-w-0 flex-1 py-3">
@@ -139,7 +141,7 @@ export function Page({ title, subtitle, actions, children }: { title: string; su
           </button>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-[1480px] px-4 py-5 sm:px-7 sm:py-7">
+      <main className="mx-auto w-full max-w-[1480px] px-4 pb-[max(20px,env(safe-area-inset-bottom))] pt-5 sm:px-7 sm:py-7">
         {actions && <div className="mb-5">{actions}</div>}
         {children}
       </main>

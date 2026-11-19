@@ -6,7 +6,8 @@ import { DataTable } from '../components/ui/DataTable';
 import { ListCard, StatsRow, Toolbar, matches, useDebounced } from '../components/ui/ListKit';
 import { OnlineDot } from '../components/ui/status';
 import { useData } from '../hooks/useData';
-import { runAction } from '../lib/actions';
+import { formValues, runAction } from '../lib/actions';
+import { createDevice, setDeviceActive } from '../services/mutations';
 import { relTime } from '../lib/format';
 import { READER_MODE_LABEL, type Device } from '../types';
 
@@ -50,15 +51,18 @@ export default function Devices() {
         </ListCard>
       </div>
       <Modal open={creating} onClose={() => setCreating(false)} title="Novo dispositivo"
-        footer={<><Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button><Button onClick={async () => { await runAction('Dispositivo cadastrado'); setCreating(false); }}>Salvar</Button></>}>
-        <div className="space-y-4">
-          <Field label="Nome" required><Input placeholder="Ex.: Portão C" /></Field>
-          <Field label="Código" hint="Gerado automaticamente"><Input disabled placeholder="DSP-006" /></Field>
-          <Field label="Evento"><Select>{events.map((e) => <option key={e.id}>{e.name}</option>)}</Select></Field>
-        </div>
+        footer={<><Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button><Button type="submit" form="device-form">Salvar</Button></>}>
+        <form id="device-form" className="space-y-4" onSubmit={async (e) => {
+          e.preventDefault(); const v = formValues(e.currentTarget);
+          if (await runAction('Dispositivo cadastrado', () => createDevice(v as never), ['devices'])) setCreating(false);
+        }}>
+          <Field label="Nome" required><Input name="name" required placeholder="Ex.: Portão C" /></Field>
+          <Field label="Código" hint="Deixe em branco para gerar automaticamente"><Input name="device_code" placeholder="DSP-006" className="uppercase" /></Field>
+          <Field label="Evento"><Select name="event_id"><option value="">Sem evento</option>{events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</Select></Field>
+        </form>
       </Modal>
       <Modal open={!!off} onClose={() => setOff(null)} title="Desativar dispositivo"
-        footer={<><Button variant="outline" onClick={() => setOff(null)}>Cancelar</Button><Button variant="danger" onClick={async () => { await runAction('Dispositivo desativado remotamente'); setOff(null); }}>Desativar</Button></>}>
+        footer={<><Button variant="outline" onClick={() => setOff(null)}>Cancelar</Button><Button variant="danger" onClick={async () => { if (off && await runAction('Dispositivo desativado remotamente', () => setDeviceActive(off.id, false), ['devices', 'stats'])) setOff(null); }}>Desativar</Button></>}>
         <p className="text-sm">O dispositivo <strong>{off?.name}</strong> deixará de registrar acessos imediatamente. Registros pendentes na fila ainda serão sincronizados.</p>
       </Modal>
     </Page>

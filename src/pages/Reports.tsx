@@ -3,7 +3,9 @@ import { BarChart3, Ban, Clock, FileSpreadsheet, FileText, Hand, LogIn, ScanFace
 import { Page } from '../components/layout/AppShell';
 import { Button, Card, CardHeader, Field, Input, Select } from '../components/ui';
 import { useData } from '../hooks/useData';
-import { runAction } from '../lib/actions';
+import { downloadCSV } from '../lib/csv';
+import { fmtDateTime } from '../lib/format';
+import { toast } from '../components/ui';
 import { cx } from '../lib/format';
 
 const REPORTS = [
@@ -26,7 +28,34 @@ export default function Reports() {
   const shifts = useData('shifts').data ?? [];
   const devices = useData('devices').data ?? [];
   const users = useData('users').data ?? [];
+  const logs = useData('accessLogs').data ?? [];
+  const employees = useData('employees').data ?? [];
   const [sel, setSel] = useState('presence');
+  const [f, setF] = useState({ event: '', from: '', to: '', emp: '', sector: '', device: '', op: '', move: '', result: '' });
+  const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((x) => ({ ...x, [k]: e.target.value }));
+  const filtered = logs.filter((l) =>
+    (!f.event || l.event_id === f.event) && (!f.from || l.occurred_at >= f.from) && (!f.to || l.occurred_at <= `${f.to}T23:59:59`) &&
+    (!f.emp || l.employee_name.toLowerCase().includes(f.emp.toLowerCase())) && (!f.sector || l.sector_name === f.sector) &&
+    (!f.device || l.device_name === f.device) && (!f.op || l.operator_name === f.op) && (!f.move || l.access_type === f.move) && (!f.result || l.decision === f.result));
+  const exportExcel = () => {
+    const name = `eventoid-${sel}-${new Date().toISOString().slice(0, 10)}.csv`;
+    if (sel === 'bysector') {
+      return downloadCSV(name, ['Setor', 'Escalados', 'Presentes'], sectors.filter((s) => !f.event || s.event_id === f.event).map((s) => [s.name, s.staff_count, s.present]));
+    }
+    if (sel === 'still') {
+      const last = new Map<string, (typeof logs)[number]>();
+      [...filtered].reverse().forEach((l) => { if (l.decision === 'allowed' && l.employee_id) last.set(l.employee_id, l); });
+      return downloadCSV(name, ['Funcionário', 'Setor', 'Entrada', 'Dispositivo'], [...last.values()].filter((l) => l.access_type === 'entry').map((l) => [l.employee_name, l.sector_name, fmtDateTime(l.occurred_at), l.device_name]));
+    }
+    if (sel === 'presence') {
+      return downloadCSV(name, ['Código', 'Funcionário', 'Situação'], employees.filter((e) => !f.event || e.event_id === f.event).map((e) => [e.code, e.full_name,
+        filtered.some((l) => l.employee_id === e.id && l.decision === 'allowed') ? 'Presente' : 'Ausente']));
+    }
+    const rows = filtered.filter((l) => sel === 'denied' || sel === 'fail' ? l.decision === 'denied' && (sel === 'denied' || l.reason === 'Rosto não reconhecido') : sel === 'manual' ? l.manual : true);
+    if (['punct', 'late', 'early', 'hours'].includes(sel)) toast.info('Este relatório usa os turnos; por enquanto o arquivo traz todos os movimentos para cálculo.');
+    downloadCSV(name, ['Data e hora', 'Funcionário', 'Setor', 'Movimento', 'Resultado', 'Motivo', 'Dispositivo', 'Operador', 'Manual', 'Offline'],
+      rows.map((l) => [fmtDateTime(l.occurred_at), l.employee_name, l.sector_name, l.access_type === 'entry' ? 'Entrada' : 'Saída', l.decision === 'allowed' ? 'Liberado' : 'Negado', l.reason ?? '', l.device_name, l.operator_name, l.manual ? 'Sim' : 'Não', l.was_offline ? 'Sim' : 'Não']));
+  };
   const current = REPORTS.find((r) => r.key === sel)!;
 
   return (
@@ -44,20 +73,20 @@ export default function Reports() {
         <Card className="self-start xl:sticky xl:top-24">
           <CardHeader title={current.label} subtitle="Defina os filtros e exporte" />
           <div className="grid grid-cols-2 gap-2 border-b border-line p-5">
-            <Button variant="outline" icon={FileText} onClick={() => runAction(`${current.label} exportado em PDF`)}>PDF</Button>
-            <Button icon={FileSpreadsheet} onClick={() => runAction(`${current.label} exportado em Excel`)}>Excel</Button>
+            <Button variant="outline" icon={FileText} onClick={() => window.print()}>PDF</Button>
+            <Button icon={FileSpreadsheet} onClick={exportExcel}>Excel</Button>
           </div>
           <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-1">
-            <Field label="Evento"><Select>{events.map((e) => <option key={e.id}>{e.name}</option>)}</Select></Field>
-            <div className="grid grid-cols-2 gap-2"><Field label="De"><Input type="date" /></Field><Field label="Até"><Input type="date" /></Field></div>
-            <Field label="Funcionário"><Input placeholder="Todos" /></Field>
-            <Field label="Setor"><Select><option>Todos</option>{sectors.map((s) => <option key={s.id}>{s.name}</option>)}</Select></Field>
+            <Field label="Evento"><Select value={f.event} onChange={upd('event')}><option value="">Todos</option>{events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</Select></Field>
+            <div className="grid grid-cols-2 gap-2"><Field label="De"><Input type="date" value={f.from} onChange={upd('from')} /></Field><Field label="Até"><Input type="date" value={f.to} onChange={upd('to')} /></Field></div>
+            <Field label="Funcionário"><Input placeholder="Todos" value={f.emp} onChange={upd('emp')} /></Field>
+            <Field label="Setor"><Select value={f.sector} onChange={upd('sector')}><option value="">Todos</option>{[...new Set(sectors.map((s) => s.name))].map((n) => <option key={n}>{n}</option>)}</Select></Field>
             <Field label="Turno"><Select><option>Todos</option>{shifts.map((s) => <option key={s.id}>{s.name}</option>)}</Select></Field>
-            <Field label="Dispositivo"><Select><option>Todos</option>{devices.map((d) => <option key={d.id}>{d.name}</option>)}</Select></Field>
-            <Field label="Operador"><Select><option>Todos</option>{users.filter((u) => u.role === 'reader' || u.role === 'supervisor').map((u) => <option key={u.id}>{u.full_name}</option>)}</Select></Field>
+            <Field label="Dispositivo"><Select value={f.device} onChange={upd('device')}><option value="">Todos</option>{devices.map((d) => <option key={d.id}>{d.name}</option>)}</Select></Field>
+            <Field label="Operador"><Select value={f.op} onChange={upd('op')}><option value="">Todos</option>{users.filter((u) => u.role === 'reader' || u.role === 'supervisor').map((u) => <option key={u.id}>{u.full_name}</option>)}</Select></Field>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Movimento"><Select><option>Todos</option><option>Entrada</option><option>Saída</option></Select></Field>
-              <Field label="Resultado"><Select><option>Todos</option><option>Liberado</option><option>Negado</option></Select></Field>
+              <Field label="Movimento"><Select value={f.move} onChange={upd('move')}><option value="">Todos</option><option value="entry">Entrada</option><option value="exit">Saída</option></Select></Field>
+              <Field label="Resultado"><Select value={f.result} onChange={upd('result')}><option value="">Todos</option><option value="allowed">Liberado</option><option value="denied">Negado</option></Select></Field>
             </div>
           </div>
         </Card>

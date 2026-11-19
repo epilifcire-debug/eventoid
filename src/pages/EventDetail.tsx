@@ -9,7 +9,8 @@ import { AccessTable } from './Dashboard';
 import { useData } from '../hooks/useData';
 import { useAuth } from '../hooks/useAuth';
 import { canEdit } from '../lib/permissions';
-import { runAction } from '../lib/actions';
+import { formValues, runAction } from '../lib/actions';
+import { closeEvent, updateEvent } from '../services/mutations';
 import { cx, fmtDateTime, fmtRange, relTime } from '../lib/format';
 import { READER_MODE_LABEL } from '../types';
 
@@ -39,6 +40,7 @@ export default function EventDetail() {
   const stats = useData('stats');
   const [tab, setTab] = useState<TabKey>('summary');
   const [step, setStep] = useState(0);
+  const [offline, setOffline] = useState(true);
   const ev = events.data?.find((e) => e.id === id);
 
   if (events.isLoading) return <Page title="Evento"><LoadingBlock /></Page>;
@@ -125,11 +127,16 @@ export default function EventDetail() {
             {tab === 'access' && <AccessTable rows={(logs.data ?? []).filter((l) => l.event_id === ev.id).slice(0, 15)} />}
             {tab === 'reports' && <p className="text-sm text-ink-muted">Os relatórios deste evento ficam em <Link to="/relatorios" className="font-medium text-primary">Relatórios</Link>, já filtrados por evento.</p>}
             {tab === 'settings' && (
-              <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
-                <Field label="Validade dos dados offline (horas)"><Input type="number" defaultValue={ev.offline_hours} disabled={!editable} /></Field>
+              <form className="grid max-w-2xl gap-4 sm:grid-cols-2" onSubmit={async (e) => {
+                e.preventDefault();
+                const v = formValues(e.currentTarget);
+                await runAction('Configurações do evento salvas', () => updateEvent(ev.id, { offline_hours: Number(v.offline_hours) || 24, offline_enabled: offline }), ['events']);
+              }}>
+                <Field label="Validade dos dados offline (horas)"><Input name="offline_hours" type="number" min={1} max={168} defaultValue={ev.offline_hours} disabled={!editable} /></Field>
                 <Field label="Sincronização completa até"><Input defaultValue="1 hora antes do início" disabled /></Field>
-                <div className="sm:col-span-2"><Toggle checked label="Permitir operação offline neste evento" onChange={() => {}} /></div>
-              </div>
+                <div className="sm:col-span-2"><Toggle checked={offline} label="Permitir operação offline neste evento" onChange={setOffline} /></div>
+                {editable && <div><Button type="submit">Salvar</Button></div>}
+              </form>
             )}
             {tab === 'closing' && (
               <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
@@ -150,7 +157,10 @@ export default function EventDetail() {
                     <Card className="p-4"><p className="text-sm font-semibold">{CLOSING[step]}</p><p className="mt-1 text-sm text-ink-muted">Etapa {step + 1} de {CLOSING.length}.</p></Card>
                   )}
                   {editable && step < 7 && (
-                    <Button icon={step === 0 ? Lock : Check} variant={step === 0 ? 'danger' : 'primary'} onClick={async () => { if (step === 0) await runAction('Novas liberações bloqueadas'); setStep((s) => s + 1); }}>
+                    <Button icon={step === 0 ? Lock : Check} variant={step === 0 ? 'danger' : 'primary'} onClick={async () => {
+                      if (step === 0 && !(await runAction('Evento encerrado: novas liberações bloqueadas', () => closeEvent(ev.id), ['events', 'stats']))) return;
+                      setStep((s) => s + 1);
+                    }}>
                       {step === 0 ? 'Confirmar bloqueio' : 'Concluir etapa'}
                     </Button>
                   )}

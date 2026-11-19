@@ -1,8 +1,8 @@
 // Service worker mínimo: cache só do shell estático. Dados operacionais nunca são cacheados aqui
 // (a fila offline do leitor ficará no IndexedDB — etapa de backend).
-const CACHE = 'eventoid-shell-v1';
+const CACHE = 'eventoid-shell-v2';
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/manifest.webmanifest', '/icons/icon-192.png'])));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/manifest.webmanifest', '/icons/icon-192.png', '/favicon.png'])));
   self.skipWaiting();
 });
 self.addEventListener('activate', (e) => {

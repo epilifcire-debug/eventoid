@@ -5,6 +5,9 @@ import type { AccessType, ReaderMode } from '../types';
 
 export interface ReaderContext {
   event_id: string;
+  device_code?: string | null;
+  read_interval_s?: number;
+  result_time_s?: number;
   event_name: string;
   device_name: string;
   mode: ReaderMode;
@@ -68,4 +71,36 @@ export function demoRecognize(employeeId: string, forceDeny = false, mode: Reade
 export function demoLookupCode(code: string): RecognitionResult | null {
   const e = demoEmployees.find((x) => x.code.toLowerCase() === code.trim().toLowerCase() || x.code.endsWith(code.trim()));
   return e ? demoRecognize(e.id) : null;
+}
+
+/* -------- Operação real (Supabase) -------- */
+export interface ReaderEmployee { employee_id: string; code: string; full_name: string; sector_name: string | null; photo_path: string | null; descriptors: unknown[] }
+
+/** Dados mínimos do evento do leitor (sem CPF/telefone/e-mail). Base do cache offline. */
+export async function loadReaderDataset(): Promise<ReaderEmployee[]> {
+  if (DEMO_MODE || !supabase) return [];
+  const { data, error } = await supabase.rpc('reader_dataset');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ReaderEmployee[];
+}
+
+const REASON_LABEL: Record<string, string> = {
+  face_not_found: 'Nenhum rosto detectado', face_not_recognized: 'Rosto não reconhecido', employee_inactive: 'Funcionário inativo',
+  employee_not_linked: 'Funcionário não vinculado ao evento', employee_blocked: 'Funcionário bloqueado', event_inactive: 'Evento encerrado',
+  reader_not_authorized: 'Operador sem autorização', device_not_authorized: 'Dispositivo não autorizado', duplicate_entry: 'Entrada já registrada',
+  duplicate_exit: 'Saída sem entrada registrada', outside_validity: 'Fora do período permitido', offline_data_expired: 'Dados offline desatualizados',
+};
+
+/** Registra a leitura no servidor (a decisão é sempre do banco). `null` = leitura repetida ignorada. */
+export async function registerAccess(ctx: ReaderContext, employeeId: string | null, confidence: number | null): Promise<RecognitionResult | null> {
+  const { data, error } = await supabase!.rpc('register_access', {
+    p_client_record_id: crypto.randomUUID(), p_employee_id: employeeId, p_confidence: confidence, p_device_code: ctx.device_code ?? null,
+  });
+  if (error) throw new Error(error.message);
+  const r = data as { decision: string; reason?: string; employee_name?: string; code?: string; sector_name?: string; access_type?: AccessType; occurred_at: string };
+  if (r.decision === 'ignored') return null;
+  return {
+    decision: r.decision === 'allowed' ? 'allowed' : 'denied', employee_id: employeeId ?? undefined, employee_name: r.employee_name, code: r.code,
+    sector_name: r.sector_name, access_type: r.access_type, reason: r.reason ? REASON_LABEL[r.reason] ?? 'Acesso não autorizado' : undefined, occurred_at: r.occurred_at,
+  };
 }

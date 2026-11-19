@@ -36,6 +36,23 @@ O que o banco já faz:
 - Bucket privado `employee-faces` (`employees/{id}/arquivo`): administradores enviam as fotos, e o operador de Leitura só lê fotos do próprio evento.
 - Views `v_*` com `security_invoker = true`, já no formato que o frontend usa.
 
+## Convite de usuários (Edge Function)
+
+Os usuários entram por convite e definem a senha pelo e-mail. A função `supabase/functions/invite-user` usa a `service_role` só no servidor.
+
+```bash
+npm i -g supabase          # ou: npx supabase
+supabase login
+supabase link --project-ref SEU_PROJECT_REF
+supabase functions deploy invite-user
+```
+
+Em **Authentication → URL Configuration**:
+- **Site URL**: o endereço do app (ex.: `https://eventoid.seudominio.com.br`).
+- **Redirect URLs**: inclua `https://SEU-DOMINIO/login` e `https://SEU-DOMINIO/definir-senha`.
+
+Opcional: defina o secret `ALLOWED_ORIGIN` da função com o domínio do app, para restringir o CORS.
+
 ## Publicar na Shard Cloud
 
 ```bash
@@ -66,10 +83,13 @@ supabase/migrations   0001 estrutura · 0002 segurança · 0003 funções e view
 | Etapa | Situação |
 |---|---|
 | Frontend navegável (todas as telas e estados) | pronto |
-| Banco, RLS, Storage, funções de acesso | pronto (testado em Postgres local) |
-| Leitura das telas a partir das views | pronto (`services/api.ts`) |
-| Gravações dos formulários (criar/editar) | pendente: hoje avisam que dependem do backend |
-| Reconhecimento facial real (face-api.js) | pendente: o leitor tem o fluxo e os temporizadores; a detecção entra no lugar da simulação |
-| Fila offline (IndexedDB) e sincronização | pendente: o banco já aceita `was_offline` e `client_record_id` |
-| Convite de usuário (Edge Function com service_role) | pendente |
-| Exportação PDF/Excel | pendente |
+| Banco, RLS, Storage e funções de acesso | pronto (testado em Postgres local) |
+| Leitura das telas a partir das views | pronto |
+| Gravações: eventos, encerramento, setores, turnos, funcionários (criar, aprovar, bloquear), captura facial com upload, convite e ativação de usuários, configuração de leitores, dispositivos, liberação manual, configurações e assinatura, termos, revogação e exclusão de biometria | pronto |
+| Primeiro acesso e recuperação de senha | pronto (`/definir-senha`) |
+| Exportação Excel (CSV) de relatórios, monitoramento e auditoria; PDF pela impressão do navegador | pronto |
+| PWA: manifest, ícones circulares e maskable, service worker só do shell, convite de instalação discreto, safe areas | pronto |
+| Leitor: registro por código no servidor (`register_access`) | pronto |
+| Reconhecimento facial automático (face-api.js + descritores) | pendente |
+| Fila offline do leitor (IndexedDB) e sincronização | pendente: o banco já aceita `was_offline` e `client_record_id` |
+| Página pública de autocadastro | pendente |
