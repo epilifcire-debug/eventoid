@@ -19,11 +19,14 @@ Preview em arquivo único, para aprovar o layout: `npm run build:preview` (gera 
 ## Banco de dados (Supabase)
 
 1. Crie um projeto novo no Supabase (região **São Paulo — sa-east-1**).
-2. Em **SQL Editor**, rode o arquivo `supabase/EVENTOID_banco_completo.sql` (ele junta os três arquivos de `supabase/migrations`, na ordem).
-3. Em **Authentication → Users**, crie a sua conta (e-mail e senha).
-4. Rode `supabase/primeiro_admin_master.sql`, com o seu e-mail, para virar Administrador Master.
-5. Em **Project Settings → API**, copie a **Project URL** e a **publishable key** (ou a anon key) para o `.env`.
+2. Abra `supabase/EVENTOID_banco_completo.sql` e troque `SEU-EMAIL@dominio.com.br` pelo seu e-mail (bloco "TROQUE AQUI", perto do final).
+3. Em **SQL Editor → New query**, cole o arquivo inteiro e rode **uma vez**.
+4. Em **Authentication → Users → Add user → Create new user**, crie a conta com o **mesmo e-mail**. Ela já nasce Administrador Master, sem precisar trocar a senha.
+5. Em **Authentication → Sign In / Providers**, desligue "Allow new users to sign up". O acesso é só por convite.
+6. Em **Project Settings → API**, copie a **Project URL** e a **publishable key** (ou a anon key) para o `.env`.
    Nunca coloque a `service_role` no frontend.
+
+O arquivo completo junta os quatro arquivos de `supabase/migrations`, na ordem. Não rode de novo no mesmo projeto: mudanças futuras vêm em blocos de ajuste.
 
 O que o banco já faz:
 - 15 tabelas com RLS em todas, sem acesso para `anon`, e grants explícitos para `authenticated`.
